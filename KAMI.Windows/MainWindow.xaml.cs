@@ -37,6 +37,7 @@ namespace KAMI.Windows
                 mouse1Button.Content = FromVKey(m_kami.Config.Mouse1Key)?.ToString() ?? "Unbound";
                 mouse2Button.Content = FromVKey(m_kami.Config.Mouse2Key)?.ToString() ?? "Unbound";
                 sensitivityTextBox.Text = m_kami.Config.Sensitivity.ToString(CultureInfo.InvariantCulture);
+                scopedSensitivityTextBox.Text = m_kami.Config.ScopedSensitivity.ToString(CultureInfo.InvariantCulture);
                 mouseCursorCheckBox.IsChecked = m_kami.Config.HideCursor;
                 pcsx2CheckBox.IsChecked = m_kami.Config.UsePCSX2;
                 invertXCheckBox.IsChecked = m_kami.Config.InvertX;
@@ -140,6 +141,18 @@ namespace KAMI.Windows
             else if (sensitivityEllipse != null)
             {
                 sensitivityEllipse.Fill = new SolidColorBrush(Color.FromRgb(100, 0, 0));
+            }
+        }
+        private void scopedSensitivityTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (scopedSensitivityEllipse != null && float.TryParse(scopedSensitivityTextBox.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out float scopedSensitivity))
+            {
+                m_kami.SetScopedSensitivity(scopedSensitivity);
+                scopedSensitivityEllipse.Fill = new SolidColorBrush(Color.FromRgb(0, 100, 0));
+            }
+            else if (scopedSensitivityEllipse != null)
+            {
+                scopedSensitivityEllipse.Fill = new SolidColorBrush(Color.FromRgb(100, 0, 0));
             }
         }
 

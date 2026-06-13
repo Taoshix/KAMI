@@ -5,7 +5,13 @@ namespace KAMI.Core.Games
     public class Ratchet3PS2 : RatchetOGBase
     {
         private uint m_addressScoped;
-        bool is_single_player;
+        private bool isSinglePlayer;
+        
+        // Track last camera direction to filter jitter
+        private float lastCamX;
+        private float lastCamY;
+        private float lastCamZ;
+        private const float jitterThreadshold = 0.001f;
 
         public Ratchet3PS2(IntPtr ipc) : base(ipc)
         {
@@ -14,8 +20,8 @@ namespace KAMI.Core.Games
         public override void UpdateCamera(int diffX, int diffY)
         {
             uint mp_map_id = IPCUtils.ReadU32(m_ipc, 0x001F8528);
-            is_single_player = mp_map_id < 40;
-            if (is_single_player) // must be SP
+            isSinglePlayer = mp_map_id < 40;
+            if (isSinglePlayer) // must be SP
             {
                 m_addressHor = 0x1A6160;
                 m_addressVert = 0x1A6180;
@@ -107,7 +113,11 @@ namespace KAMI.Core.Games
 
             // Gravity-ramp directional camera update using character up vector
             // Applied to both single player and multiplayer
-            UpdateGravityRampCamera(horDiff, vertDiff);
+            // Only update if there's actual input to avoid amplifying memory jitter
+            if (horDiff != 0f || vertDiff != 0f)
+            {
+                UpdateGravityRampCamera(horDiff, vertDiff);
+            }
         }
 
         private void UpdateGravityRampCamera(float horDiff, float vertDiff)
@@ -117,11 +127,28 @@ namespace KAMI.Core.Games
             float camY = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB4);
             float camZ = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB8);
 
+            // Check if camera direction has changed significantly (filter out jitter)
+            float deltaX = MathF.Abs(camX - lastCamX);
+            float deltaY = MathF.Abs(camY - lastCamY);
+            float deltaZ = MathF.Abs(camZ - lastCamZ);
+
+            // The game likes to litter the camera values ever so slightly while on a gravity ramp which causes random snapping
+            if (deltaX < jitterThreadshold && deltaY < jitterThreadshold && deltaZ < jitterThreadshold)
+            {
+                // Camera hasn't changed significantly, skip update
+                return;
+            }
+
+            // Update last known camera values
+            lastCamX = camX;
+            lastCamY = camY;
+            lastCamZ = camZ;
+
             // Read character up vector U = (Ux, Uy, Uz)
             float Ux;
             float Uy;
             float Uz;
-            if (is_single_player)
+            if (isSinglePlayer)
             {
                 Ux = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xC8);
                 Uy = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xB8);
@@ -132,6 +159,13 @@ namespace KAMI.Core.Games
                 Ux = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xA8);
                 Uy = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0x98);
                 Uz = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xB8);
+            }
+
+            // if up vector is NaN or extremely large, skip update
+            if (float.IsNaN(Ux) || float.IsNaN(Uy) || float.IsNaN(Uz) ||
+                float.IsInfinity(Ux) || float.IsInfinity(Uy) || float.IsInfinity(Uz))
+            {
+                return;
             }
 
             // Normalize U
@@ -169,6 +203,7 @@ namespace KAMI.Core.Games
             float rLen = MathF.Sqrt(Rx * Rx + Ry * Ry + Rz * Rz);
             if (rLen < 1e-4f)
             {
+                // Degenerate (looking straight up/down) – pick any right perpendicular to U
                 Rx = 1f; Ry = 0f; Rz = 0f;
             }
             else
@@ -181,6 +216,13 @@ namespace KAMI.Core.Games
                 yawX, yawY, yawZ,
                 Rx, Ry, Rz,
                 vertDiff);
+
+            // if result is NaN or infinite, skip write
+            if (float.IsNaN(pitchX) || float.IsNaN(pitchY) || float.IsNaN(pitchZ) ||
+                float.IsInfinity(pitchX) || float.IsInfinity(pitchY) || float.IsInfinity(pitchZ))
+            {
+                return;
+            }
 
             // Write back updated gravity camera direction
             IPCUtils.WriteFloat(m_ipc, m_addressHor + 0xB0, pitchX);

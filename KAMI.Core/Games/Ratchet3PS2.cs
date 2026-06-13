@@ -5,7 +5,7 @@ namespace KAMI.Core.Games
     public class Ratchet3PS2 : RatchetOGBase
     {
         private uint m_addressScoped;
-        private bool isScoped;
+        bool is_single_player;
 
         public Ratchet3PS2(IntPtr ipc) : base(ipc)
         {
@@ -14,22 +14,12 @@ namespace KAMI.Core.Games
         public override void UpdateCamera(int diffX, int diffY)
         {
             uint mp_map_id = IPCUtils.ReadU32(m_ipc, 0x001F8528);
-            if (mp_map_id < 40) // must be SP
+            is_single_player = mp_map_id < 40;
+            if (is_single_player) // must be SP
             {
                 m_addressHor = 0x1A6160;
                 m_addressVert = 0x1A6180;
                 m_addressScoped = 0x1A71C5;
-
-                isScoped = IPCUtils.ReadU8(m_ipc, m_addressScoped) != 0;
-
-                if (isScoped)
-                {
-                    diffX = (int)(diffX * ScopedSensModifier);
-                    diffY = (int)(diffY * ScopedSensModifier);
-                }
-
-                base.UpdateCamera(diffX, diffY);
-                return;
             }
             else
             {
@@ -96,10 +86,11 @@ namespace KAMI.Core.Games
                         break;
                 }
             }
+
             m_camera.Hor = IPCUtils.ReadFloat(m_ipc, m_addressHor);
             m_camera.Vert = IPCUtils.ReadFloat(m_ipc, m_addressVert);
 
-            isScoped = IPCUtils.ReadU8(m_ipc, m_addressScoped) != 0;
+            bool isScoped = IPCUtils.ReadU8(m_ipc, m_addressScoped) != 0;
             float horDiff = -diffX * SensModifier;
             float vertDiff = diffY * SensModifier;
 
@@ -115,15 +106,33 @@ namespace KAMI.Core.Games
             IPCUtils.WriteFloat(m_ipc, m_addressVert, m_camera.Vert);
 
             // Gravity-ramp directional camera update using character up vector
+            // Applied to both single player and multiplayer
+            UpdateGravityRampCamera(horDiff, vertDiff);
+        }
+
+        private void UpdateGravityRampCamera(float horDiff, float vertDiff)
+        {
             // Read current gravity camera direction (unit-ish vector)
             float camX = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB0);
             float camY = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB4);
             float camZ = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB8);
 
             // Read character up vector U = (Ux, Uy, Uz)
-            float Ux = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xA8);
-            float Uy = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0x98);
-            float Uz = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xB8);
+            float Ux;
+            float Uy;
+            float Uz;
+            if (is_single_player)
+            {
+                Ux = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xC8);
+                Uy = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xB8);
+                Uz = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xD8);
+            }
+            else
+            {
+                Ux = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xA8);
+                Uy = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0x98);
+                Uz = IPCUtils.ReadFloat(m_ipc, m_addressHor - 0xB8);
+            }
 
             // Normalize U
             float uLen = MathF.Sqrt(Ux * Ux + Uy * Uy + Uz * Uz);
@@ -147,21 +156,6 @@ namespace KAMI.Core.Games
                 camX /= dLen; camY /= dLen; camZ /= dLen;
             }
 
-            // Build right vector R = normalize(U x D)
-            float Rx = Uy * camZ - Uz * camY;
-            float Ry = Uz * camX - Ux * camZ;
-            float Rz = Ux * camY - Uy * camX;
-            float rLen = MathF.Sqrt(Rx * Rx + Ry * Ry + Rz * Rz);
-            if (rLen < 1e-4f)
-            {
-                // Degenerate (looking straight up/down) – pick any right perpendicular to U
-                Rx = 1f; Ry = 0f; Rz = 0f;
-            }
-            else
-            {
-                Rx /= rLen; Ry /= rLen; Rz /= rLen;
-            }
-
             // 1) Yaw around up vector U by horDiff
             var (yawX, yawY, yawZ) = RotateAroundAxis(
                 camX, camY, camZ,
@@ -169,10 +163,10 @@ namespace KAMI.Core.Games
                 horDiff);
 
             // Recompute right after yaw
-            Rx = Uy * yawZ - Uz * yawY;
-            Ry = Uz * yawX - Ux * yawZ;
-            Rz = Ux * yawY - Uy * yawX;
-            rLen = MathF.Sqrt(Rx * Rx + Ry * Ry + Rz * Rz);
+            float Rx = Uy * yawZ - Uz * yawY;
+            float Ry = Uz * yawX - Ux * yawZ;
+            float Rz = Ux * yawY - Uy * yawX;
+            float rLen = MathF.Sqrt(Rx * Rx + Ry * Ry + Rz * Rz);
             if (rLen < 1e-4f)
             {
                 Rx = 1f; Ry = 0f; Rz = 0f;
@@ -182,7 +176,7 @@ namespace KAMI.Core.Games
                 Rx /= rLen; Ry /= rLen; Rz /= rLen;
             }
 
-            // 2) Pitch around right vector R by -vertDiff (mouse down looks down)
+            // 2) Pitch around right vector R by vertDiff (mouse down looks down)
             var (pitchX, pitchY, pitchZ) = RotateAroundAxis(
                 yawX, yawY, yawZ,
                 Rx, Ry, Rz,

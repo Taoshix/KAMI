@@ -6,12 +6,6 @@ namespace KAMI.Core.Games
     {
         private uint m_addressScoped;
         private bool isSinglePlayer;
-        
-        // Track last camera direction to filter jitter
-        private float lastCamX;
-        private float lastCamY;
-        private float lastCamZ;
-        private const float jitterThreadshold = 0.001f;
 
         public Ratchet3PS2(IntPtr ipc) : base(ipc)
         {
@@ -123,26 +117,9 @@ namespace KAMI.Core.Games
         private void UpdateGravityRampCamera(float horDiff, float vertDiff)
         {
             // Read current gravity camera direction (unit-ish vector)
-            float camX = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB0);
-            float camY = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB4);
-            float camZ = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB8);
-
-            // Check if camera direction has changed significantly (filter out jitter)
-            float deltaX = MathF.Abs(camX - lastCamX);
-            float deltaY = MathF.Abs(camY - lastCamY);
-            float deltaZ = MathF.Abs(camZ - lastCamZ);
-
-            // The game likes to litter the camera values ever so slightly while on a gravity ramp which causes random snapping
-            if (deltaX < jitterThreadshold && deltaY < jitterThreadshold && deltaZ < jitterThreadshold)
-            {
-                // Camera hasn't changed significantly, skip update
-                return;
-            }
-
-            // Update last known camera values
-            lastCamX = camX;
-            lastCamY = camY;
-            lastCamZ = camZ;
+            float camX = (float)Math.Round(IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB0), 5);
+            float camY = (float)Math.Round(IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB4), 5);
+            float camZ = (float)Math.Round(IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB8), 5);
 
             // Read character up vector U = (Ux, Uy, Uz)
             float Ux;

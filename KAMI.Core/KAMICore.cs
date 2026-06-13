@@ -327,7 +327,7 @@ namespace KAMI.Core
                     }
                     else
                     {
-                        Thread.Sleep(5);
+                        Thread.Sleep(8);
                     }
                 }
                 catch (Exception ex)

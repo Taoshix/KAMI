@@ -5,6 +5,7 @@ namespace KAMI.Core.Games
     public class Ratchet3PS2 : RatchetOGBase
     {
         private uint m_addressScoped;
+        private bool isScoped;
 
         public Ratchet3PS2(IntPtr ipc) : base(ipc)
         {
@@ -17,6 +18,16 @@ namespace KAMI.Core.Games
             {
                 m_addressHor = 0x1A6160;
                 m_addressVert = 0x1A6180;
+                m_addressScoped = 0x1A71C5;
+
+                isScoped = IPCUtils.ReadU8(m_ipc, m_addressScoped) != 0;
+
+                if (isScoped)
+                {
+                    diffX = (int)(diffX * ScopedSensModifier);
+                    diffY = (int)(diffY * ScopedSensModifier);
+                }
+
                 base.UpdateCamera(diffX, diffY);
                 return;
             }
@@ -88,7 +99,7 @@ namespace KAMI.Core.Games
             m_camera.Hor = IPCUtils.ReadFloat(m_ipc, m_addressHor);
             m_camera.Vert = IPCUtils.ReadFloat(m_ipc, m_addressVert);
 
-            bool isScoped = IPCUtils.ReadU8(m_ipc, m_addressScoped) != 0;
+            isScoped = IPCUtils.ReadU8(m_ipc, m_addressScoped) != 0;
             float horDiff = -diffX * SensModifier;
             float vertDiff = diffY * SensModifier;
 

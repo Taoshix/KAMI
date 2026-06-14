@@ -100,10 +100,10 @@ namespace KAMI.Core.Games
                 vertDiff *= ScopedSensModifier;
             }
 
-            m_camera.Update(horDiff, vertDiff);
+            // m_camera.Update(horDiff, vertDiff);
 
-            IPCUtils.WriteFloat(m_ipc, m_addressHor, m_camera.Hor);
-            IPCUtils.WriteFloat(m_ipc, m_addressVert, m_camera.Vert);
+            // IPCUtils.WriteFloat(m_ipc, m_addressHor, m_camera.Hor);
+            // IPCUtils.WriteFloat(m_ipc, m_addressVert, m_camera.Vert);
 
             // Gravity-ramp directional camera update using character up vector
             // Applied to both single player and multiplayer
@@ -117,9 +117,9 @@ namespace KAMI.Core.Games
         private void UpdateGravityRampCamera(float horDiff, float vertDiff)
         {
             // Read current gravity camera direction (unit-ish vector)
-            float camX = (float)Math.Round(IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB0), 5);
-            float camY = (float)Math.Round(IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB4), 5);
-            float camZ = (float)Math.Round(IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB8), 5);
+            float camX = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB0);
+            float camY = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB4);
+            float camZ = IPCUtils.ReadFloat(m_ipc, m_addressHor + 0xB8);
 
             // Read character up vector U = (Ux, Uy, Uz)
             float Ux;
